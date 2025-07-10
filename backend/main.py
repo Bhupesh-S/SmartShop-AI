@@ -1,53 +1,74 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import List
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
+import numpy as np
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from deep_translator import GoogleTranslator
+from sentence_transformers import SentenceTransformer, util
+import pdfkit
+import uuid
+import shutil
 
-# --- Load .env ---
+# --- Load environment variables ---
 load_dotenv(override=True)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Initialize Groq/OpenAI client
-client = OpenAI(
-    api_key=GROQ_API_KEY,
-    base_url="https://api.groq.com/openai/v1"
-)
+# --- Initialize clients ---
+client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
+sentiment_analyzer = SentimentIntensityAnalyzer()
+translator = GoogleTranslator()
+clip_model = SentenceTransformer('clip-ViT-B-32')  # CLIP for image similarity
 
+# --- App setup ---
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# Load & prepare data
+# --- Load product data ---
+try:
+    products = pd.read_json('data/products.json')
+    products['id'] = products['id'].astype(str).str.strip()
+    vectorizer = TfidfVectorizer()
+    product_matrix = vectorizer.fit_transform(products['name'])
+    text_embeddings = clip_model.encode(products['name'].tolist(), convert_to_tensor=True)
+except Exception as e:
+    raise Exception(f"Data loading error: {str(e)}")
 
-sentiment_analyzer = SentimentIntensityAnalyzer()
-
+# --- Request models ---
 class ReviewRequest(BaseModel):
     review: str
 
 class ChatRequest(BaseModel):
     query: str
 
+class TranslateRequest(BaseModel):
+    reviewText: str
+    langCode: str
+
+class FakeReviewRequest(BaseModel):
+    reviewText: str
+
+class CartSummaryRequest(BaseModel):
+    cartItems: List[str]
+
+class ReceiptRequest(BaseModel):
+    orderDetails: dict
+
+# --- Routes ---
 @app.get("/")
 def home():
-    return {"status": "Groq-powered AI service running"}
-
-try:
-    products = pd.read_json('data/products.json')
-    products['id'] = products['id'].astype(str).str.strip()  # Ensure 'id' is string
-    vectorizer = TfidfVectorizer()
-    product_matrix = vectorizer.fit_transform(products['name'])
-except FileNotFoundError:
-    raise Exception("Could not find product.json at 'data/product.json'")
+    return {"status": "AI Backend running via FastAPI + Groq"}
 
 @app.get("/recommendations")
-def get_recommendations(product_id: int):
+def get_recommendations(product_id: str):
     try:
-        product_name = products[products['id'] == str(product_id)]['name'].values[0]
+        product_name = products[products['id'] == product_id]['name'].values[0]
     except IndexError:
         return {"error": "Product ID not found"}
 
@@ -58,30 +79,82 @@ def get_recommendations(product_id: int):
     results = products.iloc[indices][['id', 'name']].to_dict(orient="records")
     return {"recommended_products": results}
 
-
-
 @app.post("/analyze-review")
 def analyze_review(payload: ReviewRequest):
     scores = sentiment_analyzer.polarity_scores(payload.review)
-    sentiment = ("positive" if scores["compound"]>0.3 else
-                  "negative" if scores["compound"]<-0.3 else "neutral")
+    sentiment = ("positive" if scores["compound"] > 0.3 else
+                 "negative" if scores["compound"] < -0.3 else "neutral")
     return {"sentiment": sentiment, "scores": scores}
 
 @app.post("/chatbot")
 def chatbot(payload: ChatRequest):
     try:
         res = client.chat.completions.create(
-            model="mistral-saba-24b",  # ← Updated model
-            messages=[{"role":"user","content": payload.query}]
+            model="mistral-saba-24b",
+            messages=[{"role": "user", "content": payload.query}]
         )
         return {"response": res.choices[0].message.content}
     except Exception as e:
         return {"error": f"Groq API error: {str(e)}"}
 
-@app.get("/debug-groq")
-def debug_groq():
+@app.post("/reviews/translate")
+def translate_review(payload: TranslateRequest):
     try:
-        models = client.models.list()
-        return {"available_models": [m.id for m in models.data]}
+        translated = GoogleTranslator(source=payload.langCode, target='en').translate(payload.reviewText)
+        return {"translated": translated}
     except Exception as e:
         return {"error": str(e)}
+
+@app.post("/reviews/sentiment")
+def review_sentiment(payload: ReviewRequest):
+    scores = sentiment_analyzer.polarity_scores(payload.review)
+    sentiment = "positive" if scores['compound'] > 0.3 else "negative" if scores['compound'] < -0.3 else "neutral"
+    return {"sentiment": sentiment, "score": scores['compound']}
+
+@app.post("/reviews/check")
+def fake_review_check(payload: FakeReviewRequest):
+    confidence = np.random.uniform(70, 99)  # Dummy, replace with model output
+    is_fake = "fake" if confidence > 85 else "genuine"
+    return {"isFake": is_fake == "fake", "confidence": round(confidence, 2)}
+
+@app.post("/cart/summary")
+def cart_summary(payload: CartSummaryRequest):
+    prompt = f"Generate a short promotional sales pitch for the following products: {', '.join(payload.cartItems)}"
+    try:
+        res = client.chat.completions.create(
+            model="mistral-saba-24b",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return {"summaryText": res.choices[0].message.content}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/receipt")
+def generate_receipt(data: ReceiptRequest):
+    receipt_id = str(uuid.uuid4())[:8]
+    file_path = f"receipts/{receipt_id}.pdf"
+    os.makedirs("receipts", exist_ok=True)
+
+    html_content = f"<h1>Receipt ID: {receipt_id}</h1><ul>"
+    for k, v in data.orderDetails.items():
+        html_content += f"<li><strong>{k}</strong>: {v}</li>"
+    html_content += "</ul>"
+
+    pdfkit.from_string(html_content, file_path)
+    return {"downloadLink": f"/static/receipts/{receipt_id}.pdf"}
+
+@app.post("/visual-search")
+async def visual_search(file: UploadFile = File(...)):
+    file_path = f"uploads/{file.filename}"
+    os.makedirs("uploads", exist_ok=True)
+    with open(file_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    from PIL import Image
+    img = Image.open(file_path).convert("RGB")
+    img_embedding = clip_model.encode([img], convert_to_tensor=True)
+    similarities = util.pytorch_cos_sim(img_embedding, text_embeddings).squeeze().cpu().numpy()
+
+    top_indices = similarities.argsort()[::-1][:3]
+    results = products.iloc[top_indices][['id', 'name']].to_dict(orient="records")
+    return {"matches": results}

@@ -1,0 +1,7 @@
+[
+  { "id": "1", "name": "iPhone 13", "category": "Smartphone" },
+  { "id": "2", "name": "Samsung Galaxy A52", "category": "Smartphone" },
+  { "id": "3", "name": "Realme Narzo 50", "category": "Smartphone" },
+  { "id": "4", "name": "Asus ROG 5", "category": "Smartphone" },
+  { "id": "5", "name": "Google Pixel 6a", "category": "Smartphone" }
+]

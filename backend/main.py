@@ -23,9 +23,7 @@ app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # Load & prepare data
-products = pd.read_json("data/products.json")
-vectorizer = TfidfVectorizer()
-product_matrix = vectorizer.fit_transform(products['name'])
+
 sentiment_analyzer = SentimentIntensityAnalyzer()
 
 class ReviewRequest(BaseModel):
@@ -38,11 +36,19 @@ class ChatRequest(BaseModel):
 def home():
     return {"status": "Groq-powered AI service running"}
 
+try:
+    products = pd.read_json('data/products.json')
+    products['id'] = products['id'].astype(str).str.strip()  # Ensure 'id' is string
+    vectorizer = TfidfVectorizer()
+    product_matrix = vectorizer.fit_transform(products['name'])
+except FileNotFoundError:
+    raise Exception("Could not find product.json at 'data/product.json'")
+
 @app.get("/recommendations")
 def get_recommendations(product_id: int):
     try:
         product_name = products[products['id'] == str(product_id)]['name'].values[0]
-    except:
+    except IndexError:
         return {"error": "Product ID not found"}
 
     vec = vectorizer.transform([product_name])
@@ -51,6 +57,7 @@ def get_recommendations(product_id: int):
 
     results = products.iloc[indices][['id', 'name']].to_dict(orient="records")
     return {"recommended_products": results}
+
 
 
 @app.post("/analyze-review")

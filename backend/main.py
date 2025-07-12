@@ -16,6 +16,9 @@ import pdfkit
 import uuid
 import shutil
 
+from PIL import Image
+
+
 # --- Load environment variables ---
 load_dotenv(override=True)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -34,6 +37,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 try:
     products = pd.read_json('data/products.json')
     products['id'] = products['id'].astype(str).str.strip()
+    
     vectorizer = TfidfVectorizer()
     product_matrix = vectorizer.fit_transform(products['name'])
     text_embeddings = clip_model.encode(products['name'].tolist(), convert_to_tensor=True)
@@ -86,6 +90,8 @@ def analyze_review(payload: ReviewRequest):
                  "negative" if scores["compound"] < -0.3 else "neutral")
     return {"sentiment": sentiment, "scores": scores}
 
+import markdown
+
 @app.post("/chatbot")
 def chatbot(payload: ChatRequest):
     try:
@@ -93,9 +99,18 @@ def chatbot(payload: ChatRequest):
             model="mistral-saba-24b",
             messages=[{"role": "user", "content": payload.query}]
         )
-        return {"response": res.choices[0].message.content}
+        raw_response = res.choices[0].message.content
+
+        # Convert markdown + newlines to HTML
+        html_response = markdown.markdown(raw_response)
+
+        return {
+            "response_raw": raw_response,
+            "response_html": html_response
+        }
     except Exception as e:
         return {"error": f"Groq API error: {str(e)}"}
+
 
 @app.post("/reviews/translate")
 def translate_review(payload: TranslateRequest):
@@ -145,16 +160,32 @@ def generate_receipt(data: ReceiptRequest):
 
 @app.post("/visual-search")
 async def visual_search(file: UploadFile = File(...)):
+    # Save uploaded file
     file_path = f"uploads/{file.filename}"
     os.makedirs("uploads", exist_ok=True)
     with open(file_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
+    # Load image and convert to RGB
     from PIL import Image
     img = Image.open(file_path).convert("RGB")
+
+    # Encode uploaded image using CLIP (image → embedding)
     img_embedding = clip_model.encode([img], convert_to_tensor=True)
+
+    # Compute similarity to product name embeddings (already computed)
     similarities = util.pytorch_cos_sim(img_embedding, text_embeddings).squeeze().cpu().numpy()
 
-    top_indices = similarities.argsort()[::-1][:3]
-    results = products.iloc[top_indices][['id', 'name']].to_dict(orient="records")
-    return {"matches": results}
+    # Find best match index
+    best_match_index = similarities.argmax()
+    matched_product_name = products.iloc[best_match_index]["name"]
+
+    # Match product by exact name
+    matched_product = products[products["name"] == matched_product_name].to_dict(orient="records")
+
+    if matched_product:
+        return {"match": matched_product[0]}
+    else:
+        return {"error": "No product match found"}
+
+

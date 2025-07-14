@@ -1,6 +1,9 @@
-
 import React, { useState } from 'react';
-//import { analyzeSentiment, checkReviewLegitimacy, translateReview } from '../services/geminiService.js';
+import {
+  analyzeSentiment,
+  checkReviewLegitimacy,
+  translateReview
+} from '../services/apiService.js';
 import { TranslateIcon, SparklesIcon, ShieldCheckIcon } from './Icons.jsx';
 import Spinner from './Spinner.jsx';
 
@@ -16,17 +19,17 @@ const ReviewCard = ({ review }) => {
       let result;
       switch (action) {
         case 'translate':
-          const translatedText = await translateReview(currentReviewText, 'English');
+          const translatedText = await translateReview(currentReviewText, 'auto');
           setCurrentReviewText(translatedText);
           result = `Translated to English.`;
           break;
         case 'sentiment':
           const sentiment = await analyzeSentiment(currentReviewText);
-          result = `Sentiment: ${sentiment.sentiment}. Reason: ${sentiment.reason}`;
+          result = `Sentiment: ${sentiment.sentiment}`;
           break;
         case 'legitimacy':
           const legitimacy = await checkReviewLegitimacy(currentReviewText);
-          result = `Legitimacy: ${legitimacy.isLegit ? 'Likely Genuine' : 'Potentially Fake'}. Reason: ${legitimacy.reason}`;
+          result = `Legitimacy: ${legitimacy.isLegit ? 'Likely Genuine' : 'Potentially Fake'}.`;
           break;
       }
       setAnalysisResult(result);
@@ -59,7 +62,7 @@ const ReviewCard = ({ review }) => {
       </div>
     );
   };
-  
+
   const getSentimentColor = (sentiment) => {
     if (sentiment.includes('Positive') || sentiment.includes('Genuine')) return 'text-green-500';
     if (sentiment.includes('Negative') || sentiment.includes('Fake')) return 'text-red-500';
@@ -70,16 +73,16 @@ const ReviewCard = ({ review }) => {
   return (
     <div className="py-6 border-b border-gray-200 dark:border-gray-700">
       <div className="flex items-center justify-between">
-          <div className="flex items-center">
-             <div className="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 flex items-center justify-center font-bold">
-                 {review.author.charAt(0)}
-             </div>
-             <div className="ml-4">
-                 <h4 className="text-sm font-bold text-gray-900 dark:text-white">{review.author}</h4>
-                 <div className="mt-1 flex items-center">{renderStars(review.rating)}</div>
-             </div>
+        <div className="flex items-center">
+          <div className="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 flex items-center justify-center font-bold">
+            {review.author.charAt(0)}
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{review.date}</p>
+          <div className="ml-4">
+            <h4 className="text-sm font-bold text-gray-900 dark:text-white">{review.author}</h4>
+            <div className="mt-1 flex items-center">{renderStars(review.rating)}</div>
+          </div>
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{review.date}</p>
       </div>
 
       <div className="mt-4 space-y-6 text-base italic text-gray-600 dark:text-gray-300">
@@ -97,7 +100,7 @@ const ReviewCard = ({ review }) => {
           <ShieldCheckIcon className="h-4 w-4" /> Legitimacy
         </button>
       </div>
-      
+
       {isLoading && <div className="mt-4"><Spinner /></div>}
 
       {analysisResult && !isLoading && (

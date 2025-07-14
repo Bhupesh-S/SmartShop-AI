@@ -74,7 +74,7 @@ const ReceiptPage = () => {
                   <p className="font-medium text-gray-900 dark:text-white">{item.name}</p>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Qty: {item.quantity}</p>
                 </div>
-                <p className="font-medium text-gray-900 dark:text-white">${(item.price * item.quantity).toFixed(2)}</p>
+                <p className="font-medium text-gray-900 dark:text-white">₹{(item.price * item.quantity).toFixed(2)}</p>
               </li>
             ))}
           </ul>

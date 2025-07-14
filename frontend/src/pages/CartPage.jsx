@@ -59,7 +59,7 @@ const CartPage = () => {
                               {product.name}
                             </Link>
                           </h4>
-                          <p className="ml-4 text-sm font-medium text-gray-900 dark:text-white">${(product.price * product.quantity).toFixed(2)}</p>
+                          <p className="ml-4 text-sm font-medium text-gray-900 dark:text-white">₹{(product.price * product.quantity).toFixed(2)}</p>
                         </div>
                         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{product.category}</p>
                       </div>
@@ -101,7 +101,7 @@ const CartPage = () => {
                 <dl className="space-y-4">
                   <div className="flex items-center justify-between">
                     <dt className="text-base font-medium text-gray-900 dark:text-white">Subtotal</dt>
-                    <dd className="ml-4 text-base font-medium text-gray-900 dark:text-white">${totalPrice.toFixed(2)}</dd>
+                    <dd className="ml-4 text-base font-medium text-gray-900 dark:text-white">₹{totalPrice.toFixed(2)}</dd>
                   </div>
                 </dl>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Shipping and taxes will be calculated at checkout.</p>

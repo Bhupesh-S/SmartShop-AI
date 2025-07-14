@@ -1,6 +1,5 @@
-
 import React, { useState, useRef, useEffect } from 'react';
-//import { sendMessageToBotStream } from '../services/geminiService.js';
+import { sendMessageToBotStream } from '../services/apiService.js'; // Make sure this path is correct
 import { ChatIcon, CloseIcon, SendIcon, UserIcon } from './Icons.jsx';
 
 const Chatbot = () => {
@@ -30,14 +29,14 @@ const Chatbot = () => {
       const stream = await sendMessageToBotStream(input);
       let botResponse = '';
       setMessages(prev => [...prev, { sender: 'bot', text: '' }]);
-      
+
       for await (const chunk of stream) {
         const chunkText = chunk.text;
         botResponse += chunkText;
         setMessages(prev => {
-            const newMessages = [...prev];
-            newMessages[newMessages.length - 1].text = botResponse;
-            return newMessages;
+          const newMessages = [...prev];
+          newMessages[newMessages.length - 1].text = botResponse;
+          return newMessages;
         });
       }
     } catch (error) {
@@ -59,6 +58,7 @@ const Chatbot = () => {
           {isOpen ? <CloseIcon className="h-8 w-8" /> : <ChatIcon className="h-8 w-8" />}
         </button>
       </div>
+
       {isOpen && (
         <div className="fixed bottom-24 right-6 w-full max-w-sm h-[70vh] bg-white dark:bg-gray-800 rounded-xl shadow-2xl flex flex-col z-50 border border-gray-200 dark:border-gray-700">
           <header className="p-4 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800 rounded-t-xl">
@@ -77,26 +77,28 @@ const Chatbot = () => {
                   <p className="text-sm" dangerouslySetInnerHTML={{ __html: msg.text.replace(/\\n/g, '<br />') }} />
                 </div>
                 {msg.sender === 'user' && (
-                   <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gray-500 text-white flex items-center justify-center">
+                  <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gray-500 text-white flex items-center justify-center">
                     <UserIcon className="h-5 w-5" />
                   </div>
                 )}
               </div>
             ))}
-            {isLoading && messages[messages.length -1].sender === 'user' && (
-               <div className="flex items-start gap-3">
-                   <div className="flex-shrink-0 h-8 w-8 rounded-full bg-indigo-500 text-white flex items-center justify-center">
-                    <ChatIcon className="h-5 w-5" />
+
+            {isLoading && messages[messages.length - 1].sender === 'user' && (
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-indigo-500 text-white flex items-center justify-center">
+                  <ChatIcon className="h-5 w-5" />
+                </div>
+                <div className="p-3 rounded-lg bg-gray-200 dark:bg-gray-700">
+                  <div className="flex items-center justify-center space-x-1">
+                    <span className="h-2 w-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                    <span className="h-2 w-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                    <span className="h-2 w-2 bg-indigo-500 rounded-full animate-bounce"></span>
                   </div>
-                   <div className="p-3 rounded-lg bg-gray-200 dark:bg-gray-700">
-                      <div className="flex items-center justify-center space-x-1">
-                          <span className="h-2 w-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                          <span className="h-2 w-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                          <span className="h-2 w-2 bg-indigo-500 rounded-full animate-bounce"></span>
-                      </div>
-                  </div>
-               </div>
+                </div>
+              </div>
             )}
+
             <div ref={messagesEndRef} />
           </div>
 

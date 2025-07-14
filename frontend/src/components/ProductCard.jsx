@@ -18,7 +18,7 @@ const ProductCard = ({ product }) => {
           {product.name}
         </h3>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 flex-1">{product.description.substring(0, 60)}...</p>
-        <p className="mt-4 text-xl font-bold text-indigo-600 dark:text-indigo-400">${product.price.toFixed(2)}</p>
+        <p className="mt-4 text-xl font-bold text-indigo-600 dark:text-indigo-400">₹{product.price.toFixed(2)}</p>
       </div>
     </Link>
   );
